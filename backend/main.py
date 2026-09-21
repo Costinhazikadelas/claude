@@ -12,14 +12,17 @@ from sqlalchemy.orm import sessionmaker, Session
 from datetime import datetime
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
+from dotenv import load_dotenv
 import logging
+
+load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Config
-API_ID = 39680106
-API_HASH = "f9833df7856684c660770995ea64131a"
+API_ID = int(os.getenv("API_ID"))
+API_HASH = os.getenv("API_HASH")
 DB_PATH = "telegram_crm.db"
 SESSION_NAME = "telegram_session"
 
