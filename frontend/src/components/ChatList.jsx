@@ -34,7 +34,7 @@ export default function ChatList() {
   }
 
   const filteredChats = chats.filter(chat =>
-    chat.name.toLowerCase().includes(searchTerm.toLowerCase())
+    (chat.name || '').toLowerCase().includes(searchTerm.toLowerCase())
   )
 
   return (

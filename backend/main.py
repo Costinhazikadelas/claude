@@ -130,6 +130,18 @@ class VerifyRequest(BaseModel):
     phone: str
     code: str
 
+def safe_name(entity) -> str:
+    """Always returns a non-empty display name, even for accounts/chats
+    Telegram gives no title/first_name for (e.g. deleted accounts)."""
+    if entity is None:
+        return "Desconhecido"
+    return (
+        getattr(entity, 'title', None)
+        or getattr(entity, 'first_name', None)
+        or getattr(entity, 'username', None)
+        or "Desconhecido"
+    )
+
 # Global state
 client: Optional[TelegramClient] = None
 connected_clients: set = set()
@@ -153,7 +165,7 @@ async def on_new_message(event):
         msg = Message(
             telegram_msg_id=event.id,
             sender_id=sender.id,
-            sender_name=sender.first_name or getattr(sender, 'title', 'Unknown'),
+            sender_name=safe_name(sender),
             chat_id=chat.id,
             text=event.text or "[Media]",
             is_outgoing=event.out,
@@ -171,7 +183,7 @@ async def on_new_message(event):
         else:
             new_chat = Chat(
                 telegram_id=chat.id,
-                name=getattr(chat, 'title', None) or getattr(sender, 'first_name', 'Unknown'),
+                name=getattr(chat, 'title', None) or safe_name(sender),
                 is_group=is_group,
                 last_message_at=event.date
             )
@@ -184,14 +196,14 @@ async def on_new_message(event):
             if not existing_lead:
                 db.merge(Contact(
                     telegram_id=sender.id,
-                    name=sender.first_name or 'Desconhecido',
+                    name=safe_name(sender),
                     username=getattr(sender, 'username', None),
                     is_bot=sender.bot
                 ))
                 db.add(Lead(
                     contact_id=sender.id,
                     telegram_id=sender.id,
-                    name=sender.first_name or 'Desconhecido',
+                    name=safe_name(sender),
                     status="novo"
                 ))
                 is_new_lead = True
@@ -205,7 +217,7 @@ async def on_new_message(event):
                     "type": "new_message",
                     "data": {
                         "sender_id": sender.id,
-                        "sender_name": sender.first_name or getattr(sender, 'title', 'Unknown'),
+                        "sender_name": safe_name(sender),
                         "chat_id": chat.id,
                         "text": event.text or "[Media]",
                         "timestamp": event.date.isoformat(),
@@ -235,7 +247,7 @@ async def import_history():
                 chat = dialog.entity
 
                 # Save chat
-                chat_name = getattr(chat, 'title', None) or getattr(chat, 'first_name', 'Unknown')
+                chat_name = safe_name(chat)
                 is_group = hasattr(chat, 'megagroup') or hasattr(chat, 'gigagroup')
 
                 chat_obj = Chat(
@@ -251,7 +263,7 @@ async def import_history():
                 if not is_group and hasattr(chat, 'first_name'):
                     contact = Contact(
                         telegram_id=chat.id,
-                        name=chat.first_name,
+                        name=safe_name(chat),
                         username=getattr(chat, 'username', None),
                         is_bot=getattr(chat, 'bot', False)
                     )
@@ -261,7 +273,7 @@ async def import_history():
                     lead = Lead(
                         contact_id=chat.id,
                         telegram_id=chat.id,
-                        name=chat.first_name,
+                        name=safe_name(chat),
                         status="novo"
                     )
                     db.merge(lead)
@@ -277,7 +289,7 @@ async def import_history():
                         message = Message(
                             telegram_msg_id=msg.id,
                             sender_id=sender.id,
-                            sender_name=sender.first_name or getattr(sender, 'title', 'Unknown'),
+                            sender_name=safe_name(sender),
                             chat_id=chat.id,
                             text=msg.text or "[Media]",
                             is_outgoing=msg.out,
