@@ -19,11 +19,19 @@ function App() {
       connectWS()
       loadChats()
       loadLeads()
+      let wasImporting = false
       const interval = setInterval(() => {
         healthAPI.check().then(res => {
           setImportInProgress(res.data.importing)
+          // Refresh data while importing so the dashboard fills in live,
+          // and once more right when it finishes to catch the last batch.
+          if (res.data.importing || wasImporting) {
+            loadChats()
+            loadLeads()
+          }
+          wasImporting = res.data.importing
         }).catch(() => {})
-      }, 2000)
+      }, 3000)
       return () => clearInterval(interval)
     }
   }, [isAuthenticated])
@@ -115,7 +123,7 @@ function App() {
           {importInProgress && (
             <div className="bg-yellow-50 border-b border-yellow-200 px-4 py-3">
               <p className="text-sm text-yellow-800">
-                ⏳ Importing historical data... This may take a few minutes.
+                ⏳ Importando histórico de conversas... isso pode levar alguns minutos. Os leads vão aparecendo aqui aos poucos.
               </p>
             </div>
           )}
