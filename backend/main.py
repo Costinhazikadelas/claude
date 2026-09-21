@@ -315,9 +315,30 @@ async def import_history():
         import_in_progress = False
         db.close()
 
+def fix_missing_names():
+    """One-time cleanup: earlier versions could save chats/contacts/leads
+    with name=NULL (e.g. Telegram deleted accounts). Backfill those rows
+    so the frontend never has to render a null name."""
+    db = SessionLocal()
+    try:
+        fixed = 0
+        for model in (Chat, Contact, Lead):
+            rows = db.query(model).filter(
+                (model.name == None) | (model.name == "")
+            ).all()
+            for row in rows:
+                row.name = "Desconhecido"
+                fixed += 1
+        if fixed:
+            db.commit()
+            logger.info(f"✓ Corrigidos {fixed} registros com nome ausente")
+    finally:
+        db.close()
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
+    fix_missing_names()
     yield
     # Shutdown
     if client:
