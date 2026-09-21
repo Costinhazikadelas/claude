@@ -246,37 +246,49 @@ async def import_history():
             try:
                 chat = dialog.entity
 
-                # Save chat
+                # Save chat (update in place if it already exists, by telegram_id)
                 chat_name = safe_name(chat)
                 is_group = hasattr(chat, 'megagroup') or hasattr(chat, 'gigagroup')
 
-                chat_obj = Chat(
-                    telegram_id=chat.id,
-                    name=chat_name,
-                    is_group=is_group,
-                    last_message_at=datetime.now(),
-                    unread_count=dialog.unread_count or 0
-                )
-                db.merge(chat_obj)
+                chat_obj = db.query(Chat).filter_by(telegram_id=chat.id).first()
+                if chat_obj:
+                    chat_obj.name = chat_name
+                    chat_obj.is_group = is_group
+                    chat_obj.unread_count = dialog.unread_count or 0
+                else:
+                    db.add(Chat(
+                        telegram_id=chat.id,
+                        name=chat_name,
+                        is_group=is_group,
+                        last_message_at=datetime.now(),
+                        unread_count=dialog.unread_count or 0
+                    ))
 
                 # Save contact if private chat
                 if not is_group and hasattr(chat, 'first_name'):
-                    contact = Contact(
-                        telegram_id=chat.id,
-                        name=safe_name(chat),
-                        username=getattr(chat, 'username', None),
-                        is_bot=getattr(chat, 'bot', False)
-                    )
-                    db.merge(contact)
+                    contact_obj = db.query(Contact).filter_by(telegram_id=chat.id).first()
+                    if contact_obj:
+                        contact_obj.name = safe_name(chat)
+                        contact_obj.username = getattr(chat, 'username', None)
+                        contact_obj.is_bot = getattr(chat, 'bot', False)
+                    else:
+                        db.add(Contact(
+                            telegram_id=chat.id,
+                            name=safe_name(chat),
+                            username=getattr(chat, 'username', None),
+                            is_bot=getattr(chat, 'bot', False)
+                        ))
 
-                    # Create lead
-                    lead = Lead(
-                        contact_id=chat.id,
-                        telegram_id=chat.id,
-                        name=safe_name(chat),
-                        status="novo"
-                    )
-                    db.merge(lead)
+                    # Create lead only if one doesn't already exist (avoid
+                    # resetting a lead's status/tags/notes on every re-import)
+                    lead_obj = db.query(Lead).filter_by(telegram_id=chat.id).first()
+                    if not lead_obj:
+                        db.add(Lead(
+                            contact_id=chat.id,
+                            telegram_id=chat.id,
+                            name=safe_name(chat),
+                            status="novo"
+                        ))
 
                 # Get message history (limit to 100 per chat to avoid rate limiting)
                 msg_count = 0
@@ -286,16 +298,19 @@ async def import_history():
                         if not sender:
                             continue
 
-                        message = Message(
-                            telegram_msg_id=msg.id,
-                            sender_id=sender.id,
-                            sender_name=safe_name(sender),
-                            chat_id=chat.id,
-                            text=msg.text or "[Media]",
-                            is_outgoing=msg.out,
-                            timestamp=msg.date
-                        )
-                        db.merge(message)
+                        existing_msg = db.query(Message).filter_by(
+                            chat_id=chat.id, telegram_msg_id=msg.id
+                        ).first()
+                        if not existing_msg:
+                            db.add(Message(
+                                telegram_msg_id=msg.id,
+                                sender_id=sender.id,
+                                sender_name=safe_name(sender),
+                                chat_id=chat.id,
+                                text=msg.text or "[Media]",
+                                is_outgoing=msg.out,
+                                timestamp=msg.date
+                            ))
                         msg_count += 1
                     except Exception as e:
                         logger.error(f"Error processing message: {e}")
@@ -306,6 +321,7 @@ async def import_history():
 
             except Exception as e:
                 logger.error(f"Error processing chat: {e}")
+                db.rollback()
                 continue
 
         logger.info("✓ Historical import completed!")
