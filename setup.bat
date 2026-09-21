@@ -10,7 +10,7 @@ echo.
 
 REM Check Python
 echo Verificando Python...
-python --version >nul 2>&1
+py --version >nul 2>&1
 if errorlevel 1 (
     echo ❌ Python não encontrado!
     echo Instale em: https://www.python.org/downloads/
@@ -37,7 +37,7 @@ echo Configurando Backend...
 cd backend
 
 if not exist "venv" (
-    python -m venv venv
+    py -m venv venv
 )
 
 call venv\Scripts\activate.bat

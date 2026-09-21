@@ -5,6 +5,6 @@ Set fso = CreateObject("Scripting.FileSystemObject")
 strPath = fso.GetParentFolderName(WScript.ScriptFullName)
 
 ' Executa o programa Python
-strCmd = "python """ & strPath & "\run.py"""
+strCmd = "py """ & strPath & "\run.py"""
 
 objShell.Run strCmd, 1, False

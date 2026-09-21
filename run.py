@@ -25,7 +25,7 @@ class CRMLauncher:
 
         # Check Python
         print("🔍 Verificando Python...")
-        result = os.system("python --version >nul 2>&1")
+        result = os.system("py --version >nul 2>&1")
         if result != 0:
             print("❌ ERRO: Python não está instalado!")
             print("\n📥 Baixe em: https://www.python.org/downloads/")
@@ -51,7 +51,7 @@ class CRMLauncher:
         venv_dir = backend_dir / "venv"
 
         if not venv_dir.exists():
-            os.system(f"cd {backend_dir} && python -m venv venv")
+            os.system(f"cd {backend_dir} && py -m venv venv")
 
         pip_cmd = str(venv_dir / "Scripts" / "pip.exe")
         os.system(f'"{pip_cmd}" install -q -r "{backend_dir / "requirements.txt"}"')
