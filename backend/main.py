@@ -155,6 +155,7 @@ async def on_new_message(event):
         db.add(msg)
 
         # Update chat
+        is_group = hasattr(chat, 'megagroup') or hasattr(chat, 'gigagroup')
         chat_obj = db.query(Chat).filter_by(telegram_id=chat.id).first()
         if chat_obj:
             chat_obj.last_message_at = event.date
@@ -164,10 +165,29 @@ async def on_new_message(event):
             new_chat = Chat(
                 telegram_id=chat.id,
                 name=getattr(chat, 'title', None) or getattr(sender, 'first_name', 'Unknown'),
-                is_group=hasattr(chat, 'megagroup') or hasattr(chat, 'gigagroup'),
+                is_group=is_group,
                 last_message_at=event.date
             )
             db.add(new_chat)
+
+        # Auto-create contact + lead for brand new private chats
+        is_new_lead = False
+        if not is_group and not sender.bot:
+            existing_lead = db.query(Lead).filter_by(telegram_id=sender.id).first()
+            if not existing_lead:
+                db.merge(Contact(
+                    telegram_id=sender.id,
+                    name=sender.first_name or 'Desconhecido',
+                    username=getattr(sender, 'username', None),
+                    is_bot=sender.bot
+                ))
+                db.add(Lead(
+                    contact_id=sender.id,
+                    telegram_id=sender.id,
+                    name=sender.first_name or 'Desconhecido',
+                    status="novo"
+                ))
+                is_new_lead = True
 
         db.commit()
 
@@ -182,7 +202,8 @@ async def on_new_message(event):
                         "chat_id": chat.id,
                         "text": event.text or "[Media]",
                         "timestamp": event.date.isoformat(),
-                        "is_outgoing": event.out
+                        "is_outgoing": event.out,
+                        "is_new_lead": is_new_lead
                     }
                 })
             except Exception as e:

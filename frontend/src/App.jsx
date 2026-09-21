@@ -8,6 +8,7 @@ import './App.css'
 function App() {
   const { isAuthenticated, setAuthenticated, setWsConnected, importInProgress, setImportInProgress } = useStore()
   const [loading, setLoading] = useState(true)
+  const [newLeadToast, setNewLeadToast] = useState(null)
 
   useEffect(() => {
     checkAuth()
@@ -55,6 +56,10 @@ function App() {
           console.log('New message:', data.data)
           loadChats()
           loadLeads()
+          if (data.data.is_new_lead) {
+            setNewLeadToast(data.data.sender_name)
+            setTimeout(() => setNewLeadToast(null), 6000)
+          }
         }
       }
 
@@ -115,6 +120,12 @@ function App() {
             </div>
           )}
           <Dashboard />
+          {newLeadToast && (
+            <div className="fixed bottom-6 right-6 bg-green-600 text-white px-5 py-3 rounded-lg shadow-lg flex items-center gap-2 z-50">
+              <span className="w-2 h-2 rounded-full bg-white animate-pulse"></span>
+              <span className="font-medium">Novo lead: {newLeadToast}</span>
+            </div>
+          )}
         </>
       )}
     </div>
