@@ -31,6 +31,18 @@ echo.
 echo Configurando Backend...
 cd backend
 
+if not exist ".env" (
+    echo Criando arquivo de configuracao .env ...
+    (
+        echo API_ID=39680106
+        echo API_HASH=f9833df7856684c660770995ea64131a
+        echo DATABASE_URL=sqlite:///telegram_crm.db
+        echo HOST=0.0.0.0
+        echo PORT=8000
+        echo DEBUG=False
+    ) > .env
+)
+
 if not exist "venv" (
     py -m venv venv
 )

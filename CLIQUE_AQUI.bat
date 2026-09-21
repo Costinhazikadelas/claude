@@ -6,6 +6,18 @@ echo   TELEGRAM CRM - INICIANDO
 echo ================================================
 echo.
 
+if not exist "backend\.env" (
+    echo Criando arquivo de configuracao backend\.env ...
+    (
+        echo API_ID=39680106
+        echo API_HASH=f9833df7856684c660770995ea64131a
+        echo DATABASE_URL=sqlite:///telegram_crm.db
+        echo HOST=0.0.0.0
+        echo PORT=8000
+        echo DEBUG=False
+    ) > backend\.env
+)
+
 if not exist "backend\venv" (
     echo Instalando Backend pela primeira vez, aguarde...
     cd backend
