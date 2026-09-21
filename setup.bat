@@ -1,38 +1,33 @@
 @echo off
-chcp 65001 >nul
-cls
+cd /d "%~dp0"
 
-echo.
-echo ═══════════════════════════════════════
-echo   Telegram CRM - Setup Automático
-echo ═══════════════════════════════════════
+echo ================================================
+echo   Telegram CRM - Setup
+echo ================================================
 echo.
 
-REM Check Python
 echo Verificando Python...
 py --version >nul 2>&1
 if errorlevel 1 (
-    echo ❌ Python não encontrado!
+    echo Python nao encontrado!
     echo Instale em: https://www.python.org/downloads/
     pause
     exit /b 1
 )
-echo ✓ Python encontrado
+echo OK - Python encontrado
 echo.
 
-REM Check Node
 echo Verificando Node.js...
 node --version >nul 2>&1
 if errorlevel 1 (
-    echo ❌ Node.js não encontrado!
+    echo Node.js nao encontrado!
     echo Instale em: https://nodejs.org/
     pause
     exit /b 1
 )
-echo ✓ Node.js encontrado
+echo OK - Node.js encontrado
 echo.
 
-REM Setup Backend
 echo Configurando Backend...
 cd backend
 
@@ -42,36 +37,30 @@ if not exist "venv" (
 
 call venv\Scripts\activate.bat
 
-pip install -q -r requirements.txt
+pip install -r requirements.txt
 
-echo ✓ Backend configurado
+echo OK - Backend configurado
 echo.
 
 cd ..
 
-REM Setup Frontend
 echo Configurando Frontend...
 cd frontend
 
 if not exist "node_modules" (
-    npm install -q
+    call npm install
 )
 
-echo ✓ Frontend configurado
+echo OK - Frontend configurado
 echo.
 
 cd ..
 
-cls
-
+echo ================================================
+echo   Setup completo!
+echo ================================================
 echo.
-echo ═══════════════════════════════════════
-echo   ✅ Setup Completo!
-echo ═══════════════════════════════════════
-echo.
-
-echo Para iniciar o CRM, execute:
-echo start.bat
+echo Para iniciar o CRM, execute: start.bat
 echo.
 
 pause

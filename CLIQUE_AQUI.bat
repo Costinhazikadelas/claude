@@ -1,56 +1,50 @@
 @echo off
-chcp 65001 >nul
-cls
-
 cd /d "%~dp0"
 
-echo.
-echo ╔══════════════════════════════════════════════════════╗
-echo ║                                                      ║
-echo ║         🚀 TELEGRAM CRM - INICIANDO...             ║
-echo ║                                                      ║
-echo ╚══════════════════════════════════════════════════════╝
+echo ================================================
+echo   TELEGRAM CRM - INICIANDO
+echo ================================================
 echo.
 
-REM Instala dependências se necessário
 if not exist "backend\venv" (
-    echo Instalando Backend (primeira vez - aguarde...)
+    echo Instalando Backend pela primeira vez, aguarde...
     cd backend
     py -m venv venv
     call venv\Scripts\activate.bat
-    pip install -q -r requirements.txt
+    pip install -r requirements.txt
     cd ..
 )
 
 if not exist "frontend\node_modules" (
-    echo Instalando Frontend (primeira vez - aguarde...)
+    echo Instalando Frontend pela primeira vez, aguarde...
     cd frontend
-    call npm install -q
+    call npm install
     cd ..
 )
 
 echo.
-echo ✅ Tudo pronto! Iniciando...
+echo Tudo pronto! Iniciando servidores...
 echo.
 
-REM Inicia Backend
 cd backend
 call venv\Scripts\activate.bat
-start "Backend" cmd /k python main.py
+start "Backend - Telegram CRM" cmd /k python main.py
 cd ..
 
-timeout /t 3 /nobreak
+timeout /t 3 /nobreak >nul
 
-REM Inicia Frontend
 cd frontend
-start "Frontend" cmd /k npm run dev
+start "Frontend - Telegram CRM" cmd /k npm run dev
 cd ..
 
 echo.
-echo 🌐 Abrindo navegador em 5 segundos...
-timeout /t 5 /nobreak
+echo Abrindo navegador em 5 segundos...
+timeout /t 5 /nobreak >nul
 
 start http://localhost:3000
 
-echo ✅ Pronto! Seu CRM está rodando!
+echo.
+echo Pronto! O CRM esta rodando.
+echo Se o navegador nao abrir sozinho, acesse: http://localhost:3000
+echo.
 pause
