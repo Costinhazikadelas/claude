@@ -1,0 +1,84 @@
+╔════════════════════════════════════════════════════════════════╗
+║                                                                ║
+║              🚀 TELEGRAM CRM - COMECE AQUI 🚀                 ║
+║                                                                ║
+╚════════════════════════════════════════════════════════════════╝
+
+
+👉 OPÇÃO 1: Forma mais fácil (recomendado)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Procure o arquivo "RODAR.vbs" nesta pasta
+2. Duplo clique nele
+3. Pronto! A aplicação abre automaticamente ✨
+
+(Na primeira vez demora uns 2 minutos para instalar)
+
+
+👉 OPÇÃO 2: Se a opção 1 não funcionar
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Procure o arquivo "run.py" nesta pasta
+Duplo clique nele
+Pronto!
+
+
+✅ ANTES DE COMEÇAR - Verifique:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+☐ Tem Python instalado?
+   Não? Baixe aqui: https://www.python.org/downloads/
+   (Marque a opção "Add Python to PATH" na instalação)
+
+☐ Tem Node.js instalado?
+   Não? Baixe aqui: https://nodejs.org/
+   (Versão LTS é suficiente)
+
+☐ Depois de instalar Python e Node, reinicie este programa
+
+
+🔧 PRIMEIRA EXECUÇÃO:
+━━━━━━━━━━━━━━━━━━━━━━
+
+A primeira vez demora uns 2 minutos porque:
+✓ Instala dependências do backend (Python)
+✓ Instala dependências do frontend (Node)
+✓ Depois inicia a aplicação
+
+Paciência! ☕
+
+
+🎯 QUANDO A APLICAÇÃO ABRIR:
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1. Você vê uma tela de LOGIN
+2. Digite seu número de Telegram com código do país:
+   Exemplo: +55 11 99999-9999
+3. Telegram envia um código no seu app
+4. Você digita o código
+5. PRONTO! Seu CRM está pronto 🎉
+
+
+❓ DÚVIDAS?
+━━━━━━━━━━━━
+
+Erro "Python not found"?
+→ Instale Python: https://www.python.org/downloads/
+
+Erro "Node not found"?
+→ Instale Node.js: https://nodejs.org/
+
+Página branca no navegador?
+→ Aguarde 5 segundos e recarregue (F5)
+
+Outro erro?
+→ Uma janela preta vai aparecer com detalhes do erro
+
+
+🎉 PRONTO! Você tem um CRM Telegram profissional!
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Toda vez que quiser usar:
+→ Duplo clique em RODAR.vbs ou run.py
+
+Pronto! 🚀
