@@ -123,6 +123,13 @@ class SendMessageRequest(BaseModel):
     chat_id: int
     text: str
 
+class LoginRequest(BaseModel):
+    phone: str
+
+class VerifyRequest(BaseModel):
+    phone: str
+    code: str
+
 # Global state
 client: Optional[TelegramClient] = None
 connected_clients: set = set()
@@ -325,9 +332,10 @@ async def health():
     }
 
 @app.post("/auth/login")
-async def login(phone: str):
+async def login(req: LoginRequest):
     """Initiate authentication with Telegram"""
     global client, is_authenticated
+    phone = req.phone
     try:
         client = TelegramClient(SESSION_NAME, API_ID, API_HASH)
         await client.connect()
@@ -353,9 +361,11 @@ async def login(phone: str):
         return JSONResponse({"error": str(e)}, status_code=400)
 
 @app.post("/auth/verify")
-async def verify_code(phone: str, code: str):
+async def verify_code(req: VerifyRequest):
     """Verify authentication code"""
     global client, is_authenticated
+    phone = req.phone
+    code = req.code
     try:
         await client.sign_in(phone, code)
         is_authenticated = True
