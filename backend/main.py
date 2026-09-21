@@ -194,12 +194,14 @@ async def on_new_message(event):
         if not is_group and not sender.bot:
             existing_lead = db.query(Lead).filter_by(telegram_id=sender.id).first()
             if not existing_lead:
-                db.merge(Contact(
-                    telegram_id=sender.id,
-                    name=safe_name(sender),
-                    username=getattr(sender, 'username', None),
-                    is_bot=sender.bot
-                ))
+                existing_contact = db.query(Contact).filter_by(telegram_id=sender.id).first()
+                if not existing_contact:
+                    db.add(Contact(
+                        telegram_id=sender.id,
+                        name=safe_name(sender),
+                        username=getattr(sender, 'username', None),
+                        is_bot=sender.bot
+                    ))
                 db.add(Lead(
                     contact_id=sender.id,
                     telegram_id=sender.id,
