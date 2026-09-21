@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useStore } from './store'
-import { healthAPI, connectWebSocket, chatsAPI } from './services/api'
+import { healthAPI, connectWebSocket, chatsAPI, leadsAPI } from './services/api'
 import AuthPanel from './components/AuthPanel'
 import Dashboard from './components/Dashboard'
 import './App.css'
@@ -17,6 +17,7 @@ function App() {
     if (isAuthenticated) {
       connectWS()
       loadChats()
+      loadLeads()
       const interval = setInterval(() => {
         healthAPI.check().then(res => {
           setImportInProgress(res.data.importing)
@@ -53,6 +54,7 @@ function App() {
         if (data.type === 'new_message') {
           console.log('New message:', data.data)
           loadChats()
+          loadLeads()
         }
       }
 
@@ -76,6 +78,15 @@ function App() {
       useStore.setState({ chats: res.data })
     } catch (error) {
       console.error('Failed to load chats:', error)
+    }
+  }
+
+  const loadLeads = async () => {
+    try {
+      const res = await leadsAPI.getAll(null, 0, 100)
+      useStore.setState({ leads: res.data })
+    } catch (error) {
+      console.error('Failed to load leads:', error)
     }
   }
 

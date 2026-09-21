@@ -1,5 +1,17 @@
 import { useStore } from '../store'
 
+function NavIcon({ path }) {
+  return (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="shrink-0">
+      <path d={path} />
+    </svg>
+  )
+}
+
+const CHAT_ICON = 'M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z'
+const USERS_ICON = 'M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75'
+const SEND_ICON = 'M22 2L11 13M22 2l-7 20-4-9-9-4 20-7z'
+
 export default function Sidebar({ open, onToggle }) {
   const { activeTab, setActiveTab, isAuthenticated, setAuthenticated, wsConnected } = useStore()
 
@@ -15,7 +27,14 @@ export default function Sidebar({ open, onToggle }) {
         {/* Logo */}
         <div className="p-4 border-b border-gray-700">
           <div className="flex items-center justify-between">
-            {open && <h1 className="text-xl font-bold">CRM</h1>}
+            {open && (
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center">
+                  <NavIcon path={SEND_ICON} />
+                </div>
+                <h1 className="text-lg font-bold tracking-tight">Telegram CRM</h1>
+              </div>
+            )}
             <button
               onClick={() => onToggle(!open)}
               className="p-1 hover:bg-gray-800 rounded"
@@ -35,8 +54,8 @@ export default function Sidebar({ open, onToggle }) {
                 : 'hover:bg-gray-800'
             }`}
           >
-            <span className="text-xl">💬</span>
-            {open && <span>Chats</span>}
+            <NavIcon path={CHAT_ICON} />
+            {open && <span>Conversas</span>}
           </button>
 
           <button
@@ -47,7 +66,7 @@ export default function Sidebar({ open, onToggle }) {
                 : 'hover:bg-gray-800'
             }`}
           >
-            <span className="text-xl">👥</span>
+            <NavIcon path={USERS_ICON} />
             {open && <span>Leads</span>}
           </button>
         </nav>

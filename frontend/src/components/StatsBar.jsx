@@ -1,52 +1,97 @@
-import { useState, useEffect } from 'react'
 import { useStore } from '../store'
-import { leadsAPI } from '../services/api'
+import './StatsBar.css'
+
+const ICON_PATHS = {
+  users: 'M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
+  chat: 'M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z',
+  trophy: 'M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4zM7 4H4a2 2 0 0 0 0 4h1M17 4h3a2 2 0 0 1 0 4h-1',
+  percent: 'M19 5L5 19M6.5 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM17.5 20a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z',
+}
+
+function Icon({ name }) {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d={ICON_PATHS[name]} />
+    </svg>
+  )
+}
+
+function StatTile({ icon, tint, label, value, sub }) {
+  return (
+    <div className="stat-tile">
+      <div className="stat-tile-icon" style={{ color: tint, background: `color-mix(in srgb, ${tint} 15%, transparent)` }}>
+        <Icon name={icon} />
+      </div>
+      <p className="stat-tile-value">{value}</p>
+      <p className="stat-tile-label">{label}</p>
+      {sub && <p className="stat-tile-sub">{sub}</p>}
+    </div>
+  )
+}
+
+const STATUS_ORDER = ['novo', 'qualificado', 'negociando', 'ganho', 'perdido']
+const STATUS_META = {
+  novo: { label: 'Novo', color: 'var(--muted)' },
+  qualificado: { label: 'Qualificado', color: 'var(--series-1)' },
+  negociando: { label: 'Negociando', color: 'var(--status-warning)' },
+  ganho: { label: 'Ganho', color: 'var(--status-good)' },
+  perdido: { label: 'Perdido', color: 'var(--status-critical)' },
+}
 
 export default function StatsBar() {
   const { chats, leads } = useStore()
-  const [stats, setStats] = useState({
-    totalChats: 0,
-    totalLeads: 0,
-    qualifiedLeads: 0,
-    closedDeals: 0
-  })
 
-  useEffect(() => {
-    calculateStats()
-  }, [chats, leads])
+  const byStatus = STATUS_ORDER.map((key) => ({
+    key,
+    ...STATUS_META[key],
+    count: leads.filter((l) => l.status === key).length,
+  }))
 
-  const calculateStats = () => {
-    const qualifiedLeads = leads.filter(l => l.status !== 'novo').length
-    const closedDeals = leads.filter(l => l.status === 'ganho').length
-
-    setStats({
-      totalChats: chats.length,
-      totalLeads: leads.length,
-      qualifiedLeads,
-      closedDeals
-    })
-  }
+  const totalLeads = leads.length
+  const activeChats = chats.length
+  const won = byStatus.find((s) => s.key === 'ganho').count
+  const lost = byStatus.find((s) => s.key === 'perdido').count
+  const conversionRate = won + lost > 0 ? Math.round((won / (won + lost)) * 100) : 0
+  const unread = chats.reduce((sum, c) => sum + (c.unread_count || 0), 0)
+  const maxCount = Math.max(1, ...byStatus.map((s) => s.count))
 
   return (
-    <div className="bg-white border-b border-gray-200 px-6 py-4 grid grid-cols-4 gap-4">
-      <div className="bg-gradient-to-br from-blue-50 to-blue-100 rounded-lg p-4">
-        <p className="text-sm text-gray-600 font-medium">Active Chats</p>
-        <p className="text-2xl font-bold text-blue-600">{stats.totalChats}</p>
+    <div className="stats-bar">
+      <div className="stat-tiles">
+        <StatTile icon="users" tint="var(--series-1)" label="Total de leads" value={totalLeads} />
+        <StatTile
+          icon="chat"
+          tint="var(--series-1)"
+          label="Conversas ativas"
+          value={activeChats}
+          sub={unread > 0 ? `${unread} não lidas` : 'tudo em dia'}
+        />
+        <StatTile icon="trophy" tint="var(--status-good)" label="Negócios ganhos" value={won} />
+        <StatTile
+          icon="percent"
+          tint="var(--status-warning)"
+          label="Taxa de conversão"
+          value={`${conversionRate}%`}
+          sub="ganhos / (ganhos + perdidos)"
+        />
       </div>
 
-      <div className="bg-gradient-to-br from-purple-50 to-purple-100 rounded-lg p-4">
-        <p className="text-sm text-gray-600 font-medium">Total Leads</p>
-        <p className="text-2xl font-bold text-purple-600">{stats.totalLeads}</p>
-      </div>
-
-      <div className="bg-gradient-to-br from-yellow-50 to-yellow-100 rounded-lg p-4">
-        <p className="text-sm text-gray-600 font-medium">Qualified</p>
-        <p className="text-2xl font-bold text-yellow-600">{stats.qualifiedLeads}</p>
-      </div>
-
-      <div className="bg-gradient-to-br from-green-50 to-green-100 rounded-lg p-4">
-        <p className="text-sm text-gray-600 font-medium">Closed Deals</p>
-        <p className="text-2xl font-bold text-green-600">{stats.closedDeals}</p>
+      <div className="funnel-card">
+        <p className="funnel-title">Leads por status</p>
+        <div className="funnel-rows">
+          {byStatus.map((s) => (
+            <div className="funnel-row" key={s.key}>
+              <span className="funnel-row-label">{s.label}</span>
+              <div className="funnel-track">
+                <div
+                  className="funnel-fill"
+                  style={{ width: `${(s.count / maxCount) * 100}%`, background: s.color }}
+                />
+              </div>
+              <span className="funnel-row-count">{s.count}</span>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )
