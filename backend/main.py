@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from telethon import TelegramClient, events
 from telethon.tl.types import MessageService
+from telethon.errors import FloodWaitError
 from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Boolean, desc
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
@@ -242,9 +243,21 @@ async def import_history():
     db = SessionLocal()
     try:
         logger.info("Starting historical import...")
-        dialogs = await client.get_dialogs()
+        try:
+            dialogs = await client.get_dialogs()
+        except FloodWaitError as e:
+            logger.warning(
+                f"⏳ Telegram pediu para esperar {e.seconds}s antes de listar "
+                f"as conversas. Aguardando e tentando de novo..."
+            )
+            await asyncio.sleep(e.seconds + 1)
+            dialogs = await client.get_dialogs()
+        total_dialogs = len(dialogs)
+        logger.info(f"✓ {total_dialogs} conversas encontradas no Telegram, importando...")
 
         for idx, dialog in enumerate(dialogs):
+            if idx > 0 and idx % 10 == 0:
+                logger.info(f"... progresso: {idx}/{total_dialogs} conversas processadas")
             try:
                 chat = dialog.entity
 
@@ -252,17 +265,23 @@ async def import_history():
                 chat_name = safe_name(chat)
                 is_group = hasattr(chat, 'megagroup') or hasattr(chat, 'gigagroup')
 
+                # dialog.date is the timestamp of that chat's most recent
+                # message - use it instead of "now" so the chat list can be
+                # sorted by actual recency, not by import order.
+                last_msg_at = dialog.date or datetime.now()
+
                 chat_obj = db.query(Chat).filter_by(telegram_id=chat.id).first()
                 if chat_obj:
                     chat_obj.name = chat_name
                     chat_obj.is_group = is_group
                     chat_obj.unread_count = dialog.unread_count or 0
+                    chat_obj.last_message_at = last_msg_at
                 else:
                     db.add(Chat(
                         telegram_id=chat.id,
                         name=chat_name,
                         is_group=is_group,
-                        last_message_at=datetime.now(),
+                        last_message_at=last_msg_at,
                         unread_count=dialog.unread_count or 0
                     ))
 
@@ -320,6 +339,19 @@ async def import_history():
 
                 db.commit()
                 logger.info(f"✓ Chat '{chat_name}' - {msg_count} messages imported")
+
+                # Small pause between chats so we don't hammer Telegram's
+                # API and trigger a long FloodWaitError.
+                await asyncio.sleep(0.3)
+
+            except FloodWaitError as e:
+                logger.warning(
+                    f"⏳ Telegram pediu para esperar {e.seconds}s (limite de "
+                    f"requisições). Aguardando antes de continuar a importação..."
+                )
+                db.rollback()
+                await asyncio.sleep(e.seconds + 1)
+                continue
 
             except Exception as e:
                 logger.error(f"Error processing chat: {e}")
