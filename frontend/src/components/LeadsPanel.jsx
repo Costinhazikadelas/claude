@@ -1,14 +1,8 @@
 import { useState, useEffect } from 'react'
 import { useStore } from '../store'
-import { leadsAPI } from '../services/api'
+import { leadsAPI, kanbanAPI } from '../services/api'
 
-const COLUMNS = [
-  { key: 'novo', label: 'Novo', accent: '#898781' },
-  { key: 'qualificado', label: 'Qualificado', accent: '#2a78d6' },
-  { key: 'negociando', label: 'Negociando', accent: '#fab219' },
-  { key: 'ganho', label: 'Ganho', accent: '#0ca30c' },
-  { key: 'perdido', label: 'Perdido', accent: '#d03b3b' },
-]
+const NEW_COLUMN_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#e87ba4', '#4a3aa7', '#e34948']
 
 function LeadCard({ lead, onOpenChat, onDragStart, isDragging }) {
   const tags = (lead.tags || '').split(',').map(t => t.trim()).filter(Boolean)
@@ -48,15 +42,75 @@ function LeadCard({ lead, onOpenChat, onDragStart, isDragging }) {
   )
 }
 
+function ColumnHeader({ column, count, onRename }) {
+  const [editing, setEditing] = useState(false)
+  const [value, setValue] = useState(column.label)
+
+  const commit = async () => {
+    setEditing(false)
+    const trimmed = value.trim()
+    if (!trimmed || trimmed === column.label) {
+      setValue(column.label)
+      return
+    }
+    onRename(column, trimmed)
+  }
+
+  return (
+    <div className="flex items-center justify-between px-3 py-3 gap-2">
+      <div className="flex items-center gap-2 min-w-0">
+        <span className="w-2.5 h-2.5 rounded-full flex-shrink-0" style={{ background: column.color }} />
+        {editing ? (
+          <input
+            autoFocus
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            onBlur={commit}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') e.currentTarget.blur()
+              if (e.key === 'Escape') { setValue(column.label); setEditing(false) }
+            }}
+            className="font-semibold text-sm text-gray-700 bg-white border border-blue-300 rounded px-1 py-0.5 w-full outline-none"
+          />
+        ) : (
+          <button
+            onClick={() => setEditing(true)}
+            title="Clique para renomear"
+            className="font-semibold text-sm text-gray-700 truncate hover:underline decoration-dotted text-left"
+          >
+            {column.label}
+          </button>
+        )}
+      </div>
+      <span className="text-xs font-medium text-gray-500 bg-white px-2 py-0.5 rounded-full flex-shrink-0">
+        {count}
+      </span>
+    </div>
+  )
+}
+
 export default function LeadsPanel() {
   const { leads, setLeads, setSelectedChat, setActiveTab } = useStore()
+  const [columns, setColumns] = useState([])
   const [loading, setLoading] = useState(false)
   const [draggingLeadId, setDraggingLeadId] = useState(null)
   const [dragOverColumn, setDragOverColumn] = useState(null)
+  const [addingColumn, setAddingColumn] = useState(false)
+  const [newColumnName, setNewColumnName] = useState('')
 
   useEffect(() => {
+    loadColumns()
     loadLeads()
   }, [])
+
+  const loadColumns = async () => {
+    try {
+      const res = await kanbanAPI.getColumns()
+      setColumns(res.data)
+    } catch (error) {
+      console.error('Failed to load kanban columns:', error)
+    }
+  }
 
   const loadLeads = async () => {
     setLoading(true)
@@ -67,6 +121,34 @@ export default function LeadsPanel() {
       console.error('Failed to load leads:', error)
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleRenameColumn = async (column, newLabel) => {
+    setColumns(columns.map(c => (c.id === column.id ? { ...c, label: newLabel } : c)))
+    try {
+      await kanbanAPI.updateColumn(column.id, { label: newLabel })
+    } catch (error) {
+      console.error('Failed to rename column:', error)
+      loadColumns()
+    }
+  }
+
+  const handleAddColumn = async () => {
+    const label = newColumnName.trim()
+    if (!label) {
+      setAddingColumn(false)
+      return
+    }
+    const color = NEW_COLUMN_COLORS[columns.length % NEW_COLUMN_COLORS.length]
+    try {
+      const res = await kanbanAPI.createColumn(label, color)
+      setColumns([...columns, res.data])
+    } catch (error) {
+      console.error('Failed to create column:', error)
+    } finally {
+      setNewColumnName('')
+      setAddingColumn(false)
     }
   }
 
@@ -112,12 +194,12 @@ export default function LeadsPanel() {
         </div>
       ) : (
         <div className="flex-1 flex gap-4 overflow-x-auto pb-2">
-          {COLUMNS.map((col) => {
+          {columns.map((col) => {
             const columnLeads = leads.filter(l => l.status === col.key)
             const isOver = dragOverColumn === col.key
             return (
               <div
-                key={col.key}
+                key={col.id}
                 onDragOver={(e) => {
                   e.preventDefault()
                   setDragOverColumn(col.key)
@@ -128,18 +210,7 @@ export default function LeadsPanel() {
                   isOver ? 'ring-2 ring-blue-400 bg-blue-50' : ''
                 }`}
               >
-                <div className="flex items-center justify-between px-3 py-3">
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="w-2.5 h-2.5 rounded-full"
-                      style={{ background: col.accent }}
-                    />
-                    <span className="font-semibold text-sm text-gray-700">{col.label}</span>
-                  </div>
-                  <span className="text-xs font-medium text-gray-500 bg-white px-2 py-0.5 rounded-full">
-                    {columnLeads.length}
-                  </span>
-                </div>
+                <ColumnHeader column={col} count={columnLeads.length} onRename={handleRenameColumn} />
 
                 <div className="flex-1 overflow-y-auto scrollbar-hide px-2 pb-2 space-y-2 min-h-[100px]">
                   {columnLeads.length === 0 ? (
@@ -161,6 +232,46 @@ export default function LeadsPanel() {
               </div>
             )
           })}
+
+          {/* Add column */}
+          <div className="flex-shrink-0 w-72">
+            {addingColumn ? (
+              <div className="bg-gray-100 rounded-lg p-3">
+                <input
+                  autoFocus
+                  value={newColumnName}
+                  onChange={(e) => setNewColumnName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') handleAddColumn()
+                    if (e.key === 'Escape') { setAddingColumn(false); setNewColumnName('') }
+                  }}
+                  placeholder="Nome da coluna"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500 mb-2"
+                />
+                <div className="flex gap-2">
+                  <button
+                    onClick={handleAddColumn}
+                    className="flex-1 bg-blue-500 hover:bg-blue-600 text-white text-sm font-medium py-1.5 rounded transition"
+                  >
+                    Adicionar
+                  </button>
+                  <button
+                    onClick={() => { setAddingColumn(false); setNewColumnName('') }}
+                    className="flex-1 bg-gray-200 hover:bg-gray-300 text-gray-700 text-sm font-medium py-1.5 rounded transition"
+                  >
+                    Cancelar
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setAddingColumn(true)}
+                className="w-full h-12 border-2 border-dashed border-gray-300 rounded-lg text-gray-400 hover:border-blue-400 hover:text-blue-500 text-sm font-medium transition"
+              >
+                + Adicionar coluna
+              </button>
+            )}
+          </div>
         </div>
       )}
     </div>

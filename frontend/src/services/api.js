@@ -32,6 +32,12 @@ export const leadsAPI = {
   update: (leadId, data) => api.put(`/leads/${leadId}`, data),
 }
 
+export const kanbanAPI = {
+  getColumns: () => api.get('/kanban/columns'),
+  createColumn: (label, color) => api.post('/kanban/columns', { label, color }),
+  updateColumn: (columnId, data) => api.put(`/kanban/columns/${columnId}`, data),
+}
+
 export const healthAPI = {
   check: () => api.get('/health'),
 }

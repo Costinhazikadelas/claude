@@ -1,4 +1,6 @@
+import { useState, useEffect } from 'react'
 import { useStore } from '../store'
+import { kanbanAPI } from '../services/api'
 import './StatsBar.css'
 
 const ICON_PATHS = {
@@ -29,28 +31,25 @@ function StatTile({ icon, tint, label, value, sub }) {
   )
 }
 
-const STATUS_ORDER = ['novo', 'qualificado', 'negociando', 'ganho', 'perdido']
-const STATUS_META = {
-  novo: { label: 'Novo', color: 'var(--muted)' },
-  qualificado: { label: 'Qualificado', color: 'var(--series-1)' },
-  negociando: { label: 'Negociando', color: 'var(--status-warning)' },
-  ganho: { label: 'Ganho', color: 'var(--status-good)' },
-  perdido: { label: 'Perdido', color: 'var(--status-critical)' },
-}
-
 export default function StatsBar() {
   const { chats, leads } = useStore()
+  const [columns, setColumns] = useState([])
 
-  const byStatus = STATUS_ORDER.map((key) => ({
-    key,
-    ...STATUS_META[key],
-    count: leads.filter((l) => l.status === key).length,
+  useEffect(() => {
+    kanbanAPI.getColumns().then(res => setColumns(res.data)).catch(() => {})
+  }, [])
+
+  const byStatus = columns.map((col) => ({
+    key: col.key,
+    label: col.label,
+    color: col.color,
+    count: leads.filter((l) => l.status === col.key).length,
   }))
 
   const totalLeads = leads.length
   const activeChats = chats.length
-  const won = byStatus.find((s) => s.key === 'ganho').count
-  const lost = byStatus.find((s) => s.key === 'perdido').count
+  const won = byStatus.find((s) => s.key === 'ganho')?.count || 0
+  const lost = byStatus.find((s) => s.key === 'perdido')?.count || 0
   const conversionRate = won + lost > 0 ? Math.round((won / (won + lost)) * 100) : 0
   const unread = chats.reduce((sum, c) => sum + (c.unread_count || 0), 0)
   const maxCount = Math.max(1, ...byStatus.map((s) => s.count))

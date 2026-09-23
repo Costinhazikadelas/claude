@@ -69,13 +69,49 @@ class Lead(Base):
     contact_id = Column(Integer)
     telegram_id = Column(Integer)
     name = Column(String)
-    status = Column(String, default="novo")  # novo, qualificado, negociando, ganho, perdido
+    status = Column(String, default="novo")  # references KanbanColumn.key
     tags = Column(String, default="")  # comma-separated
     notes = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
+class KanbanColumn(Base):
+    __tablename__ = "kanban_columns"
+    id = Column(Integer, primary_key=True)
+    key = Column(String, unique=True)  # stable id used by Lead.status, never changes after creation
+    label = Column(String)
+    color = Column(String, default="#2a78d6")
+    position = Column(Integer, default=0)
+
 Base.metadata.create_all(engine)
+
+DEFAULT_KANBAN_COLUMNS = [
+    ("novo", "Novo", "#898781"),
+    ("qualificado", "Qualificado", "#2a78d6"),
+    ("negociando", "Negociando", "#fab219"),
+    ("ganho", "Ganho", "#0ca30c"),
+    ("perdido", "Perdido", "#d03b3b"),
+]
+
+def seed_kanban_columns():
+    db = SessionLocal()
+    try:
+        if db.query(KanbanColumn).count() == 0:
+            for idx, (key, label, color) in enumerate(DEFAULT_KANBAN_COLUMNS):
+                db.add(KanbanColumn(key=key, label=label, color=color, position=idx))
+            db.commit()
+    finally:
+        db.close()
+
+def slugify_column_key(label: str, db) -> str:
+    import re
+    base = re.sub(r'[^a-z0-9]+', '-', label.lower()).strip('-') or 'coluna'
+    key = base
+    n = 1
+    while db.query(KanbanColumn).filter_by(key=key).first():
+        n += 1
+        key = f"{base}-{n}"
+    return key
 
 # Pydantic Schemas
 class ContactSchema(BaseModel):
@@ -130,6 +166,14 @@ class LoginRequest(BaseModel):
 class VerifyRequest(BaseModel):
     phone: str
     code: str
+
+class KanbanColumnCreate(BaseModel):
+    label: str
+    color: str = "#2a78d6"
+
+class KanbanColumnUpdate(BaseModel):
+    label: Optional[str] = None
+    color: Optional[str] = None
 
 def safe_name(entity) -> str:
     """Always returns a non-empty display name, even for accounts/chats
@@ -388,6 +432,7 @@ def fix_missing_names():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
+    seed_kanban_columns()
     fix_missing_names()
     yield
     # Shutdown
@@ -552,6 +597,54 @@ async def update_lead(lead_id: int, lead_data: LeadSchema):
         db.commit()
 
         return lead
+    finally:
+        db.close()
+
+@app.get("/kanban/columns")
+async def get_kanban_columns():
+    """Get all Kanban columns, in order"""
+    db = SessionLocal()
+    try:
+        columns = db.query(KanbanColumn).order_by(KanbanColumn.position).all()
+        return columns
+    finally:
+        db.close()
+
+@app.post("/kanban/columns")
+async def create_kanban_column(req: KanbanColumnCreate):
+    """Add a new Kanban column"""
+    db = SessionLocal()
+    try:
+        label = req.label.strip()
+        if not label:
+            return JSONResponse({"error": "Nome da coluna não pode ser vazio"}, status_code=400)
+
+        key = slugify_column_key(label, db)
+        max_position = db.query(KanbanColumn).count()
+        column = KanbanColumn(key=key, label=label, color=req.color, position=max_position)
+        db.add(column)
+        db.commit()
+        db.refresh(column)
+        return column
+    finally:
+        db.close()
+
+@app.put("/kanban/columns/{column_id}")
+async def update_kanban_column(column_id: int, req: KanbanColumnUpdate):
+    """Rename or recolor a Kanban column (key stays stable so leads keep their status)"""
+    db = SessionLocal()
+    try:
+        column = db.query(KanbanColumn).filter_by(id=column_id).first()
+        if not column:
+            return JSONResponse({"error": "Coluna não encontrada"}, status_code=404)
+
+        if req.label is not None and req.label.strip():
+            column.label = req.label.strip()
+        if req.color is not None:
+            column.color = req.color
+        db.commit()
+        db.refresh(column)
+        return column
     finally:
         db.close()
 
