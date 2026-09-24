@@ -41,6 +41,27 @@ export function relativeTime(dateInput) {
   return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
 }
 
+export function followUpInfo(dateInput) {
+  if (!dateInput) return null
+  const date = new Date(dateInput)
+  const now = new Date()
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate())
+  const startOfDate = new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  const diffDays = Math.round((startOfDate - startOfToday) / 86400000)
+
+  let urgency = 'future' // future, today, overdue
+  if (diffDays < 0) urgency = 'overdue'
+  else if (diffDays === 0) urgency = 'today'
+
+  let label
+  if (diffDays === 0) label = 'Hoje'
+  else if (diffDays === 1) label = 'Amanhã'
+  else if (diffDays === -1) label = 'Ontem'
+  else label = date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+
+  return { label, urgency }
+}
+
 export function dayLabel(dateInput) {
   const date = new Date(dateInput)
   const now = new Date()

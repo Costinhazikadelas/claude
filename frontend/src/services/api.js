@@ -32,6 +32,13 @@ export const leadsAPI = {
   getAll: (status, skip = 0) => api.get('/leads', { params: { status, skip } }),
   update: (leadId, data) => api.put(`/leads/${leadId}`, data),
   exportUrl: () => `${API_BASE}/leads/export`,
+  getHistory: (leadId) => api.get(`/leads/${leadId}/history`),
+}
+
+export const templatesAPI = {
+  getAll: () => api.get('/templates'),
+  create: (title, text) => api.post('/templates', { title, text }),
+  remove: (templateId) => api.delete(`/templates/${templateId}`),
 }
 
 export const groupsAPI = {

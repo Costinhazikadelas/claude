@@ -2,11 +2,75 @@ import { useState, useEffect } from 'react'
 import { useStore } from '../store'
 import { leadsAPI, kanbanAPI } from '../services/api'
 import ImportGroupModal from './ImportGroupModal'
+import LeadHistoryModal from './LeadHistoryModal'
+import { followUpInfo } from '../utils/format'
 
 const NEW_COLUMN_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#e87ba4', '#4a3aa7', '#e34948']
 
-function LeadCard({ lead, onOpenChat, onDragStart, isDragging }) {
+const FOLLOW_UP_STYLES = {
+  overdue: 'bg-red-50 text-red-600 border border-red-200',
+  today: 'bg-amber-50 text-amber-700 border border-amber-200',
+  future: 'bg-gray-100 text-gray-600 border border-gray-200',
+}
+
+function FollowUpBadge({ lead, onSetFollowUp }) {
+  const [editing, setEditing] = useState(false)
+  const info = followUpInfo(lead.follow_up_at)
+
+  if (editing) {
+    return (
+      <input
+        type="date"
+        autoFocus
+        defaultValue={lead.follow_up_at ? lead.follow_up_at.slice(0, 10) : ''}
+        onBlur={(e) => { onSetFollowUp(e.target.value || null); setEditing(false) }}
+        onKeyDown={(e) => { if (e.key === 'Enter') e.currentTarget.blur() }}
+        className="text-xs border border-blue-300 rounded px-1.5 py-0.5 outline-none"
+        onClick={(e) => e.stopPropagation()}
+      />
+    )
+  }
+
+  if (!info) {
+    return (
+      <button
+        onClick={(e) => { e.stopPropagation(); setEditing(true) }}
+        className="flex items-center gap-1 text-xs text-gray-400 hover:text-blue-500 transition"
+        title="Marcar lembrete de follow-up"
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" />
+        </svg>
+        Lembrete
+      </button>
+    )
+  }
+
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); setEditing(true) }}
+      className={`flex items-center gap-1 text-xs px-1.5 py-0.5 rounded ${FOLLOW_UP_STYLES[info.urgency]}`}
+      title="Clique para mudar a data"
+    >
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="4" width="18" height="18" rx="2" /><path d="M16 2v4M8 2v4M3 10h18" />
+      </svg>
+      {info.label}
+    </button>
+  )
+}
+
+function LeadCard({ lead, onOpenChat, onDragStart, isDragging, onUpdate, onViewHistory }) {
   const tags = (lead.tags || '').split(',').map(t => t.trim()).filter(Boolean)
+  const [editingNotes, setEditingNotes] = useState(false)
+  const [notesValue, setNotesValue] = useState(lead.notes || '')
+
+  const saveNotes = () => {
+    setEditingNotes(false)
+    if (notesValue !== (lead.notes || '')) {
+      onUpdate(lead.id, { notes: notesValue })
+    }
+  }
 
   return (
     <div
@@ -16,8 +80,23 @@ function LeadCard({ lead, onOpenChat, onDragStart, isDragging }) {
         isDragging ? 'opacity-40' : ''
       }`}
     >
-      <p className="font-medium text-gray-800 truncate">{lead.name}</p>
+      <div className="flex items-start justify-between gap-2 mb-1">
+        <p className="font-medium text-gray-800 truncate">{lead.name}</p>
+        <button
+          onClick={(e) => { e.stopPropagation(); onViewHistory(lead) }}
+          title="Ver histórico"
+          className="text-gray-300 hover:text-gray-500 flex-shrink-0"
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10" /><path d="M12 6v6l4 2" />
+          </svg>
+        </button>
+      </div>
       <p className="text-xs text-gray-400 mb-2">ID: {lead.telegram_id}</p>
+
+      <div className="mb-2">
+        <FollowUpBadge lead={lead} onSetFollowUp={(date) => onUpdate(lead.id, { follow_up_at: date })} />
+      </div>
 
       {tags.length > 0 && (
         <div className="flex flex-wrap gap-1 mb-2">
@@ -29,8 +108,24 @@ function LeadCard({ lead, onOpenChat, onDragStart, isDragging }) {
         </div>
       )}
 
-      {lead.notes && (
-        <p className="text-xs text-gray-500 mb-2 line-clamp-2">{lead.notes}</p>
+      {editingNotes ? (
+        <textarea
+          autoFocus
+          value={notesValue}
+          onChange={(e) => setNotesValue(e.target.value)}
+          onBlur={saveNotes}
+          onClick={(e) => e.stopPropagation()}
+          placeholder="Adicionar nota..."
+          rows={2}
+          className="w-full text-xs border border-blue-300 rounded px-2 py-1 mb-2 outline-none resize-none"
+        />
+      ) : (
+        <p
+          onClick={(e) => { e.stopPropagation(); setEditingNotes(true) }}
+          className={`text-xs mb-2 line-clamp-2 cursor-text hover:bg-gray-50 rounded px-1 -mx-1 ${lead.notes ? 'text-gray-500' : 'text-gray-300 italic'}`}
+        >
+          {lead.notes || 'Clique para adicionar nota...'}
+        </p>
       )}
 
       <button
@@ -99,6 +194,8 @@ export default function LeadsPanel() {
   const [addingColumn, setAddingColumn] = useState(false)
   const [newColumnName, setNewColumnName] = useState('')
   const [showImportGroup, setShowImportGroup] = useState(false)
+  const [historyLead, setHistoryLead] = useState(null)
+  const [searchTerm, setSearchTerm] = useState('')
 
   useEffect(() => {
     loadColumns()
@@ -178,6 +275,19 @@ export default function LeadsPanel() {
     }
   }
 
+  const handleUpdateLead = async (leadId, partialFields) => {
+    const lead = leads.find(l => l.id === leadId)
+    if (!lead) return
+    const updated = { ...lead, ...partialFields }
+    setLeads(leads.map(l => (l.id === leadId ? updated : l)))
+    try {
+      await leadsAPI.update(leadId, updated)
+    } catch (error) {
+      console.error('Failed to update lead:', error)
+      loadLeads()
+    }
+  }
+
   const handleOpenChat = (lead) => {
     setSelectedChat({
       telegram_id: lead.telegram_id,
@@ -188,11 +298,32 @@ export default function LeadsPanel() {
     setActiveTab('chats')
   }
 
+  const term = searchTerm.trim().toLowerCase()
+  const matchesSearch = (lead) => {
+    if (!term) return true
+    const haystack = `${lead.name || ''} ${lead.tags || ''} ${lead.notes || ''}`.toLowerCase()
+    return haystack.includes(term)
+  }
+
   return (
     <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between mb-3 flex-shrink-0">
-        <p className="text-sm text-gray-500">{leads.length} leads no total</p>
-        <div className="flex items-center gap-2">
+      <div className="flex items-center justify-between mb-3 flex-shrink-0 gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <p className="text-sm text-gray-500 flex-shrink-0">{leads.length} leads no total</p>
+          <div className="relative w-56">
+            <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="11" cy="11" r="8" /><path d="m21 21-4.3-4.3" />
+            </svg>
+            <input
+              type="text"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              placeholder="Buscar por nome, tag ou nota..."
+              className="w-full pl-8 pr-3 py-1.5 bg-white border border-gray-200 rounded-lg text-sm outline-none focus:ring-2 focus:ring-blue-500"
+            />
+          </div>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
           <button
             onClick={() => setShowImportGroup(true)}
             className="flex items-center gap-2 bg-white border border-gray-200 hover:border-gray-300 text-gray-700 text-sm font-medium px-3 py-1.5 rounded-lg shadow-sm transition"
@@ -222,6 +353,10 @@ export default function LeadsPanel() {
         />
       )}
 
+      {historyLead && (
+        <LeadHistoryModal lead={historyLead} onClose={() => setHistoryLead(null)} />
+      )}
+
       {loading && leads.length === 0 ? (
         <div className="flex-1 flex items-center justify-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
@@ -229,7 +364,7 @@ export default function LeadsPanel() {
       ) : (
         <div className="flex-1 flex gap-4 overflow-x-auto pb-2">
           {columns.map((col) => {
-            const columnLeads = leads.filter(l => l.status === col.key)
+            const columnLeads = leads.filter(l => l.status === col.key && matchesSearch(l))
             const isOver = dragOverColumn === col.key
             return (
               <div
@@ -249,7 +384,7 @@ export default function LeadsPanel() {
                 <div className="flex-1 overflow-y-auto scrollbar-hide px-2 pb-2 space-y-2 min-h-[100px]">
                   {columnLeads.length === 0 ? (
                     <div className="text-xs text-gray-400 text-center py-6">
-                      Arraste um lead aqui
+                      {term ? 'Nenhum lead corresponde à busca' : 'Arraste um lead aqui'}
                     </div>
                   ) : (
                     columnLeads.map((lead) => (
@@ -259,6 +394,8 @@ export default function LeadsPanel() {
                         onOpenChat={handleOpenChat}
                         onDragStart={handleDragStart}
                         isDragging={draggingLeadId === lead.id}
+                        onUpdate={handleUpdateLead}
+                        onViewHistory={setHistoryLead}
                       />
                     ))
                   )}

@@ -1,7 +1,128 @@
 import { useState, useEffect, useRef } from 'react'
 import { useStore } from '../store'
-import { chatsAPI } from '../services/api'
+import { chatsAPI, templatesAPI } from '../services/api'
 import { getInitials, avatarColor, dayLabel } from '../utils/format'
+
+function TemplatesMenu({ onPick }) {
+  const [open, setOpen] = useState(false)
+  const [templates, setTemplates] = useState([])
+  const [creating, setCreating] = useState(false)
+  const [title, setTitle] = useState('')
+  const [text, setText] = useState('')
+  const menuRef = useRef(null)
+
+  useEffect(() => {
+    if (open) {
+      templatesAPI.getAll().then(res => setTemplates(res.data)).catch(() => {})
+    }
+  }, [open])
+
+  useEffect(() => {
+    const handleClickOutside = (e) => {
+      if (menuRef.current && !menuRef.current.contains(e.target)) {
+        setOpen(false)
+        setCreating(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  const handleCreate = async () => {
+    if (!title.trim() || !text.trim()) return
+    const res = await templatesAPI.create(title.trim(), text.trim())
+    setTemplates([...templates, res.data])
+    setTitle('')
+    setText('')
+    setCreating(false)
+  }
+
+  const handleDelete = async (id, e) => {
+    e.stopPropagation()
+    await templatesAPI.remove(id)
+    setTemplates(templates.filter(t => t.id !== id))
+  }
+
+  return (
+    <div className="relative" ref={menuRef}>
+      <button
+        type="button"
+        onClick={() => setOpen(!open)}
+        title="Respostas prontas"
+        className="w-11 h-11 rounded-full flex items-center justify-center text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition flex-shrink-0"
+      >
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+        </svg>
+      </button>
+
+      {open && (
+        <div className="absolute bottom-full mb-2 left-0 w-72 bg-white border border-gray-200 rounded-xl shadow-lg overflow-hidden z-10">
+          <div className="px-3 py-2 border-b border-gray-100 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+            Respostas prontas
+          </div>
+          <div className="max-h-56 overflow-y-auto">
+            {templates.length === 0 ? (
+              <p className="text-sm text-gray-400 text-center py-6 px-3">Nenhuma resposta salva ainda.</p>
+            ) : (
+              templates.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => { onPick(t.text); setOpen(false) }}
+                  className="w-full text-left px-3 py-2 hover:bg-gray-50 flex items-start justify-between gap-2 group"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-gray-700 truncate">{t.title}</p>
+                    <p className="text-xs text-gray-400 truncate">{t.text}</p>
+                  </div>
+                  <span
+                    onClick={(e) => handleDelete(t.id, e)}
+                    className="opacity-0 group-hover:opacity-100 text-gray-300 hover:text-red-500 flex-shrink-0"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M18 6L6 18M6 6l12 12" />
+                    </svg>
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
+          <div className="border-t border-gray-100 p-2">
+            {creating ? (
+              <div className="space-y-1.5">
+                <input
+                  autoFocus
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                  placeholder="Título (ex: Proposta padrão)"
+                  className="w-full text-sm border border-gray-200 rounded px-2 py-1 outline-none focus:ring-2 focus:ring-blue-500"
+                />
+                <textarea
+                  value={text}
+                  onChange={(e) => setText(e.target.value)}
+                  placeholder="Texto da mensagem..."
+                  rows={2}
+                  className="w-full text-sm border border-gray-200 rounded px-2 py-1 outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                />
+                <div className="flex gap-1.5">
+                  <button onClick={handleCreate} className="flex-1 bg-blue-500 hover:bg-blue-600 text-white text-xs font-medium py-1 rounded">Salvar</button>
+                  <button onClick={() => setCreating(false)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 text-xs font-medium py-1 rounded">Cancelar</button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setCreating(true)}
+                className="w-full text-xs text-blue-500 hover:text-blue-600 font-medium py-1"
+              >
+                + Nova resposta
+              </button>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
 
 function Avatar({ name, size = 8 }) {
   return (
@@ -141,6 +262,7 @@ export default function MessageView() {
       {/* Message Input */}
       <form onSubmit={handleSendMessage} className="p-3 border-t border-gray-100 bg-white">
         <div className="flex gap-2">
+          <TemplatesMenu onPick={(text) => setNewMessage(text)} />
           <input
             type="text"
             value={newMessage}
