@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useStore } from '../store'
 import { leadsAPI, kanbanAPI } from '../services/api'
+import ImportGroupModal from './ImportGroupModal'
 
 const NEW_COLUMN_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#e87ba4', '#4a3aa7', '#e34948']
 
@@ -97,6 +98,7 @@ export default function LeadsPanel() {
   const [dragOverColumn, setDragOverColumn] = useState(null)
   const [addingColumn, setAddingColumn] = useState(false)
   const [newColumnName, setNewColumnName] = useState('')
+  const [showImportGroup, setShowImportGroup] = useState(false)
 
   useEffect(() => {
     loadColumns()
@@ -190,17 +192,35 @@ export default function LeadsPanel() {
     <div className="h-full flex flex-col">
       <div className="flex items-center justify-between mb-3 flex-shrink-0">
         <p className="text-sm text-gray-500">{leads.length} leads no total</p>
-        <a
-          href={leadsAPI.exportUrl()}
-          download
-          className="flex items-center gap-2 bg-white border border-gray-200 hover:border-gray-300 text-gray-700 text-sm font-medium px-3 py-1.5 rounded-lg shadow-sm transition"
-        >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
-          </svg>
-          Exportar contatos (CSV)
-        </a>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowImportGroup(true)}
+            className="flex items-center gap-2 bg-white border border-gray-200 hover:border-gray-300 text-gray-700 text-sm font-medium px-3 py-1.5 rounded-lg shadow-sm transition"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M17 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M13 7a4 4 0 1 1-8 0 4 4 0 0 1 8 0M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
+            </svg>
+            Importar de um grupo
+          </button>
+          <a
+            href={leadsAPI.exportUrl()}
+            download
+            className="flex items-center gap-2 bg-white border border-gray-200 hover:border-gray-300 text-gray-700 text-sm font-medium px-3 py-1.5 rounded-lg shadow-sm transition"
+          >
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+            </svg>
+            Exportar contatos (CSV)
+          </a>
+        </div>
       </div>
+
+      {showImportGroup && (
+        <ImportGroupModal
+          onClose={() => setShowImportGroup(false)}
+          onImported={() => { loadLeads(); loadColumns(); }}
+        />
+      )}
 
       {loading && leads.length === 0 ? (
         <div className="flex-1 flex items-center justify-center">

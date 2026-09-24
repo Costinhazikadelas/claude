@@ -640,6 +640,106 @@ async def get_leads(status: Optional[str] = None, skip: int = Query(0), limit: O
     finally:
         db.close()
 
+@app.get("/groups")
+async def get_groups():
+    """List Telegram groups already known from chat sync - candidates to
+    import members from as leads."""
+    db = SessionLocal()
+    try:
+        groups = db.query(Chat).filter_by(is_group=True).order_by(Chat.name).all()
+        return groups
+    finally:
+        db.close()
+
+@app.post("/groups/{telegram_id}/import-members")
+async def import_group_members(telegram_id: int):
+    """Fetch every member of a Telegram group and turn them into leads.
+
+    New members go straight into a Kanban column named after the group.
+    Members who are already leads elsewhere keep their current column/status
+    - moving them would yank an in-progress deal (e.g. "Ganho") back into a
+    raw import bucket - and instead just get tagged with the group name.
+    """
+    db = SessionLocal()
+    try:
+        chat_row = db.query(Chat).filter_by(telegram_id=telegram_id, is_group=True).first()
+        if not chat_row:
+            return JSONResponse({"error": "Grupo não encontrado"}, status_code=404)
+
+        try:
+            entity = await client.get_entity(telegram_id)
+            participants = await client.get_participants(entity, limit=None)
+        except FloodWaitError as e:
+            logger.warning(f"⏳ Telegram pediu para esperar {e.seconds}s para listar membros do grupo")
+            await asyncio.sleep(e.seconds + 1)
+            entity = await client.get_entity(telegram_id)
+            participants = await client.get_participants(entity, limit=None)
+        except Exception as e:
+            logger.error(f"Error fetching group participants: {e}")
+            return JSONResponse({"error": f"Não foi possível listar os membros: {e}"}, status_code=400)
+
+        group_label = chat_row.name
+        column = db.query(KanbanColumn).filter_by(label=group_label).first()
+        if not column:
+            key = slugify_column_key(group_label, db)
+            max_position = db.query(KanbanColumn).count()
+            column = KanbanColumn(key=key, label=group_label, color="#4a3aa7", position=max_position)
+            db.add(column)
+            db.commit()
+            db.refresh(column)
+
+        group_tag = f"grupo-{column.key}"
+        imported = 0
+        tagged = 0
+
+        for member in participants:
+            if member is None or getattr(member, 'bot', False):
+                continue
+            try:
+                existing_lead = db.query(Lead).filter_by(telegram_id=member.id).first()
+                if existing_lead:
+                    existing_tags = [t.strip() for t in (existing_lead.tags or '').split(',') if t.strip()]
+                    if group_tag not in existing_tags:
+                        existing_tags.append(group_tag)
+                        existing_lead.tags = ','.join(existing_tags)
+                        tagged += 1
+                else:
+                    name = safe_name(member)
+                    existing_contact = db.query(Contact).filter_by(telegram_id=member.id).first()
+                    if not existing_contact:
+                        db.add(Contact(
+                            telegram_id=member.id,
+                            name=name,
+                            username=getattr(member, 'username', None),
+                            is_bot=False
+                        ))
+                    db.add(Lead(
+                        contact_id=member.id,
+                        telegram_id=member.id,
+                        name=name,
+                        status=column.key,
+                        tags=group_tag
+                    ))
+                    imported += 1
+
+                # Commit per member (like import_history does per chat) so a
+                # problem with one member can never roll back everyone
+                # already processed before it.
+                db.commit()
+            except Exception as e:
+                logger.error(f"Error importing group member {getattr(member, 'id', '?')}: {e}")
+                db.rollback()
+                continue
+
+        return {
+            "imported": imported,
+            "already_existed_tagged": tagged,
+            "column_id": column.id,
+            "column_label": column.label,
+        }
+    finally:
+        db.close()
+
 @app.get("/leads/export")
 async def export_leads_csv():
     """Export all leads as a CSV file (opens directly in Excel)"""

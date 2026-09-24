@@ -34,6 +34,11 @@ export const leadsAPI = {
   exportUrl: () => `${API_BASE}/leads/export`,
 }
 
+export const groupsAPI = {
+  getAll: () => api.get('/groups'),
+  importMembers: (telegramId) => api.post(`/groups/${telegramId}/import-members`),
+}
+
 export const kanbanAPI = {
   getColumns: () => api.get('/kanban/columns'),
   createColumn: (label, color) => api.post('/kanban/columns', { label, color }),
