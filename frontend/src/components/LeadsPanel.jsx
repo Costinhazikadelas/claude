@@ -115,7 +115,7 @@ export default function LeadsPanel() {
   const loadLeads = async () => {
     setLoading(true)
     try {
-      const res = await leadsAPI.getAll(null, 0, 200)
+      const res = await leadsAPI.getAll(null, 0, 5000)
       setLeads(res.data)
     } catch (error) {
       console.error('Failed to load leads:', error)
@@ -188,6 +188,20 @@ export default function LeadsPanel() {
 
   return (
     <div className="h-full flex flex-col">
+      <div className="flex items-center justify-between mb-3 flex-shrink-0">
+        <p className="text-sm text-gray-500">{leads.length} leads no total</p>
+        <a
+          href={leadsAPI.exportUrl()}
+          download
+          className="flex items-center gap-2 bg-white border border-gray-200 hover:border-gray-300 text-gray-700 text-sm font-medium px-3 py-1.5 rounded-lg shadow-sm transition"
+        >
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" />
+          </svg>
+          Exportar contatos (CSV)
+        </a>
+      </div>
+
       {loading && leads.length === 0 ? (
         <div className="flex-1 flex items-center justify-center">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>

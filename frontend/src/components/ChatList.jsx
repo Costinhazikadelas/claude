@@ -32,7 +32,7 @@ export default function ChatList() {
   const loadChats = async () => {
     setLoading(true)
     try {
-      const res = await chatsAPI.getAll(0, 100)
+      const res = await chatsAPI.getAll(0, 5000)
       setChats(res.data)
     } catch (error) {
       console.error('Failed to load chats:', error)

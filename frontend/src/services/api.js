@@ -30,6 +30,7 @@ export const leadsAPI = {
   getAll: (status, skip = 0, limit = 50) =>
     api.get('/leads', { params: { status, skip, limit } }),
   update: (leadId, data) => api.put(`/leads/${leadId}`, data),
+  exportUrl: () => `${API_BASE}/leads/export`,
 }
 
 export const kanbanAPI = {

@@ -3,7 +3,7 @@ import asyncio
 from typing import Optional, List
 from fastapi import FastAPI, WebSocket, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from telethon import TelegramClient, events
 from telethon.tl.types import MessageService
 from telethon.errors import FloodWaitError
@@ -629,6 +629,42 @@ async def get_leads(status: Optional[str] = None, skip: int = Query(0), limit: i
             query = query.filter_by(status=status)
         leads = query.order_by(desc(Lead.updated_at)).offset(skip).limit(limit).all()
         return leads
+    finally:
+        db.close()
+
+@app.get("/leads/export")
+async def export_leads_csv():
+    """Export all leads as a CSV file (opens directly in Excel)"""
+    import csv
+    import io
+
+    db = SessionLocal()
+    try:
+        leads = db.query(Lead).order_by(desc(Lead.updated_at)).all()
+        columns = {c.key: c.label for c in db.query(KanbanColumn).all()}
+
+        buffer = io.StringIO()
+        buffer.write('﻿')  # BOM so Excel renders acentos corretamente
+        writer = csv.writer(buffer, delimiter=';')
+        writer.writerow(['Nome', 'Telegram ID', 'Status', 'Tags', 'Notas', 'Criado em', 'Atualizado em'])
+        for lead in leads:
+            writer.writerow([
+                lead.name,
+                lead.telegram_id,
+                columns.get(lead.status, lead.status),
+                lead.tags or '',
+                lead.notes or '',
+                lead.created_at.strftime('%d/%m/%Y %H:%M') if lead.created_at else '',
+                lead.updated_at.strftime('%d/%m/%Y %H:%M') if lead.updated_at else '',
+            ])
+
+        buffer.seek(0)
+        filename = f"leads_{datetime.now().strftime('%Y-%m-%d')}.csv"
+        return StreamingResponse(
+            iter([buffer.getvalue()]),
+            media_type="text/csv",
+            headers={"Content-Disposition": f'attachment; filename="{filename}"'}
+        )
     finally:
         db.close()
 
