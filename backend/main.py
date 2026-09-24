@@ -533,12 +533,14 @@ async def verify_code(req: VerifyRequest):
         return JSONResponse({"error": str(e)}, status_code=400)
 
 @app.get("/chats")
-async def get_chats(skip: int = Query(0), limit: int = Query(50)):
-    """Get all chats"""
+async def get_chats(skip: int = Query(0), limit: Optional[int] = Query(None)):
+    """Get all chats. limit=None (default) returns every chat, no cap."""
     db = SessionLocal()
     try:
-        chats = db.query(Chat).order_by(desc(Chat.last_message_at)).offset(skip).limit(limit).all()
-        return chats
+        query = db.query(Chat).order_by(desc(Chat.last_message_at)).offset(skip)
+        if limit is not None:
+            query = query.limit(limit)
+        return query.all()
     finally:
         db.close()
 
@@ -588,12 +590,14 @@ async def send_message(req: SendMessageRequest):
         return JSONResponse({"error": str(e)}, status_code=400)
 
 @app.get("/contacts")
-async def get_contacts(skip: int = Query(0), limit: int = Query(50)):
-    """Get all contacts"""
+async def get_contacts(skip: int = Query(0), limit: Optional[int] = Query(None)):
+    """Get all contacts. limit=None (default) returns every contact, no cap."""
     db = SessionLocal()
     try:
-        contacts = db.query(Contact).offset(skip).limit(limit).all()
-        return contacts
+        query = db.query(Contact).offset(skip)
+        if limit is not None:
+            query = query.limit(limit)
+        return query.all()
     finally:
         db.close()
 
@@ -620,14 +624,18 @@ async def get_stats_summary():
         db.close()
 
 @app.get("/leads")
-async def get_leads(status: Optional[str] = None, skip: int = Query(0), limit: int = Query(50)):
-    """Get all leads with optional status filter"""
+async def get_leads(status: Optional[str] = None, skip: int = Query(0), limit: Optional[int] = Query(None)):
+    """Get all leads with optional status filter. limit=None (default)
+    returns every matching lead, no cap."""
     db = SessionLocal()
     try:
         query = db.query(Lead)
         if status:
             query = query.filter_by(status=status)
-        leads = query.order_by(desc(Lead.updated_at)).offset(skip).limit(limit).all()
+        query = query.order_by(desc(Lead.updated_at)).offset(skip)
+        if limit is not None:
+            query = query.limit(limit)
+        leads = query.all()
         return leads
     finally:
         db.close()

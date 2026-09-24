@@ -115,7 +115,7 @@ export default function LeadsPanel() {
   const loadLeads = async () => {
     setLoading(true)
     try {
-      const res = await leadsAPI.getAll(null, 0, 5000)
+      const res = await leadsAPI.getAll(null, 0)
       setLeads(res.data)
     } catch (error) {
       console.error('Failed to load leads:', error)

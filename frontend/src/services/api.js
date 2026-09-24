@@ -15,7 +15,8 @@ export const authAPI = {
 }
 
 export const chatsAPI = {
-  getAll: (skip = 0, limit = 50) => api.get('/chats', { params: { skip, limit } }),
+  // No limit sent = backend returns every chat, no cap.
+  getAll: (skip = 0) => api.get('/chats', { params: { skip } }),
   getMessages: (chatId, skip = 0, limit = 50) =>
     api.get(`/chats/${chatId}/messages`, { params: { skip, limit } }),
   sendMessage: (chatId, text) =>
@@ -23,12 +24,12 @@ export const chatsAPI = {
 }
 
 export const contactsAPI = {
-  getAll: (skip = 0, limit = 50) => api.get('/contacts', { params: { skip, limit } }),
+  getAll: (skip = 0) => api.get('/contacts', { params: { skip } }),
 }
 
 export const leadsAPI = {
-  getAll: (status, skip = 0, limit = 50) =>
-    api.get('/leads', { params: { status, skip, limit } }),
+  // No limit sent = backend returns every matching lead, no cap.
+  getAll: (status, skip = 0) => api.get('/leads', { params: { status, skip } }),
   update: (leadId, data) => api.put(`/leads/${leadId}`, data),
   exportUrl: () => `${API_BASE}/leads/export`,
 }

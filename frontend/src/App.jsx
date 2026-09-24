@@ -87,7 +87,7 @@ function App() {
 
   const loadChats = async () => {
     try {
-      const res = await chatsAPI.getAll(0, 5000)
+      const res = await chatsAPI.getAll(0)
       useStore.setState({ chats: res.data })
     } catch (error) {
       console.error('Failed to load chats:', error)
@@ -96,7 +96,7 @@ function App() {
 
   const loadLeads = async () => {
     try {
-      const res = await leadsAPI.getAll(null, 0, 5000)
+      const res = await leadsAPI.getAll(null, 0)
       useStore.setState({ leads: res.data })
     } catch (error) {
       console.error('Failed to load leads:', error)
