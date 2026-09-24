@@ -10,7 +10,7 @@ from telethon.errors import FloodWaitError
 from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime, Boolean, desc
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session
-from datetime import datetime
+from datetime import datetime, timedelta
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
 from dotenv import load_dotenv
@@ -61,6 +61,7 @@ class Chat(Base):
     name = Column(String)
     is_group = Column(Boolean)
     last_message_at = Column(DateTime)
+    last_message_text = Column(String, nullable=True)
     unread_count = Column(Integer, default=0)
 
 class Lead(Base):
@@ -220,9 +221,11 @@ async def on_new_message(event):
 
         # Update chat
         is_group = hasattr(chat, 'megagroup') or hasattr(chat, 'gigagroup')
+        preview_text = event.text or "[Mídia]"
         chat_obj = db.query(Chat).filter_by(telegram_id=chat.id).first()
         if chat_obj:
             chat_obj.last_message_at = event.date
+            chat_obj.last_message_text = preview_text
             if not event.out:
                 chat_obj.unread_count += 1
         else:
@@ -230,7 +233,8 @@ async def on_new_message(event):
                 telegram_id=chat.id,
                 name=getattr(chat, 'title', None) or safe_name(sender),
                 is_group=is_group,
-                last_message_at=event.date
+                last_message_at=event.date,
+                last_message_text=preview_text
             )
             db.add(new_chat)
 
@@ -309,10 +313,14 @@ async def import_history():
                 chat_name = safe_name(chat)
                 is_group = hasattr(chat, 'megagroup') or hasattr(chat, 'gigagroup')
 
-                # dialog.date is the timestamp of that chat's most recent
-                # message - use it instead of "now" so the chat list can be
-                # sorted by actual recency, not by import order.
+                # dialog.date/message are the timestamp and content of that
+                # chat's most recent message - use them instead of "now" so
+                # the chat list can be sorted by actual recency, not import
+                # order, and show a real preview like Telegram itself does.
                 last_msg_at = dialog.date or datetime.now()
+                last_msg_text = None
+                if dialog.message is not None:
+                    last_msg_text = dialog.message.text or "[Mídia]"
 
                 chat_obj = db.query(Chat).filter_by(telegram_id=chat.id).first()
                 if chat_obj:
@@ -320,12 +328,14 @@ async def import_history():
                     chat_obj.is_group = is_group
                     chat_obj.unread_count = dialog.unread_count or 0
                     chat_obj.last_message_at = last_msg_at
+                    chat_obj.last_message_text = last_msg_text
                 else:
                     db.add(Chat(
                         telegram_id=chat.id,
                         name=chat_name,
                         is_group=is_group,
                         last_message_at=last_msg_at,
+                        last_message_text=last_msg_text,
                         unread_count=dialog.unread_count or 0
                     ))
 
@@ -429,9 +439,21 @@ def fix_missing_names():
     finally:
         db.close()
 
+def migrate_add_missing_columns():
+    """SQLite doesn't support adding columns via metadata.create_all() on an
+    existing table, so newly added columns need an explicit ALTER TABLE for
+    databases created by an earlier version of the app."""
+    with engine.connect() as conn:
+        existing = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(chats)").fetchall()}
+        if "last_message_text" not in existing:
+            conn.exec_driver_sql("ALTER TABLE chats ADD COLUMN last_message_text VARCHAR")
+            conn.commit()
+            logger.info("✓ Coluna last_message_text adicionada em chats")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup
+    migrate_add_missing_columns()
     seed_kanban_columns()
     fix_missing_names()
     yield
@@ -539,6 +561,7 @@ async def send_message(req: SendMessageRequest):
         # Save to DB
         db = SessionLocal()
         try:
+            now = datetime.now()
             msg = Message(
                 telegram_msg_id=0,  # Will be updated by listener
                 sender_id=0,
@@ -546,9 +569,15 @@ async def send_message(req: SendMessageRequest):
                 chat_id=req.chat_id,
                 text=req.text,
                 is_outgoing=True,
-                timestamp=datetime.now()
+                timestamp=now
             )
             db.add(msg)
+
+            chat_obj = db.query(Chat).filter_by(telegram_id=req.chat_id).first()
+            if chat_obj:
+                chat_obj.last_message_at = now
+                chat_obj.last_message_text = req.text
+
             db.commit()
         finally:
             db.close()
@@ -565,6 +594,28 @@ async def get_contacts(skip: int = Query(0), limit: int = Query(50)):
     try:
         contacts = db.query(Contact).offset(skip).limit(limit).all()
         return contacts
+    finally:
+        db.close()
+
+@app.get("/stats/summary")
+async def get_stats_summary():
+    """Aggregate metrics for the dashboard that don't fit in a simple list query"""
+    db = SessionLocal()
+    try:
+        today_start = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0)
+        week_ago = datetime.now() - timedelta(days=7)
+
+        messages_today = db.query(Message).filter(Message.timestamp >= today_start).count()
+        messages_received_today = db.query(Message).filter(
+            Message.timestamp >= today_start, Message.is_outgoing == False
+        ).count()
+        new_leads_7d = db.query(Lead).filter(Lead.created_at >= week_ago).count()
+
+        return {
+            "messages_today": messages_today,
+            "messages_received_today": messages_received_today,
+            "new_leads_7d": new_leads_7d,
+        }
     finally:
         db.close()
 
