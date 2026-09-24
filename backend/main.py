@@ -73,6 +73,7 @@ class Lead(Base):
     status = Column(String, default="novo")  # references KanbanColumn.key
     tags = Column(String, default="")  # comma-separated
     notes = Column(Text, nullable=True)
+    follow_up_at = Column(DateTime, nullable=True)
     created_at = Column(DateTime, default=datetime.now)
     updated_at = Column(DateTime, default=datetime.now, onupdate=datetime.now)
 
@@ -83,6 +84,20 @@ class KanbanColumn(Base):
     label = Column(String)
     color = Column(String, default="#2a78d6")
     position = Column(Integer, default=0)
+
+class LeadStatusHistory(Base):
+    __tablename__ = "lead_status_history"
+    id = Column(Integer, primary_key=True)
+    lead_id = Column(Integer, index=True)
+    from_status = Column(String, nullable=True)
+    to_status = Column(String)
+    changed_at = Column(DateTime, default=datetime.now)
+
+class MessageTemplate(Base):
+    __tablename__ = "message_templates"
+    id = Column(Integer, primary_key=True)
+    title = Column(String)
+    text = Column(Text)
 
 Base.metadata.create_all(engine)
 
@@ -153,9 +168,14 @@ class LeadSchema(BaseModel):
     status: str = "novo"
     tags: str = ""
     notes: Optional[str] = None
+    follow_up_at: Optional[datetime] = None
 
     class Config:
         from_attributes = True
+
+class MessageTemplateSchema(BaseModel):
+    title: str
+    text: str
 
 class SendMessageRequest(BaseModel):
     chat_id: int
@@ -444,11 +464,17 @@ def migrate_add_missing_columns():
     existing table, so newly added columns need an explicit ALTER TABLE for
     databases created by an earlier version of the app."""
     with engine.connect() as conn:
-        existing = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(chats)").fetchall()}
-        if "last_message_text" not in existing:
+        chats_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(chats)").fetchall()}
+        if "last_message_text" not in chats_cols:
             conn.exec_driver_sql("ALTER TABLE chats ADD COLUMN last_message_text VARCHAR")
             conn.commit()
             logger.info("✓ Coluna last_message_text adicionada em chats")
+
+        leads_cols = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(leads)").fetchall()}
+        if "follow_up_at" not in leads_cols:
+            conn.exec_driver_sql("ALTER TABLE leads ADD COLUMN follow_up_at DATETIME")
+            conn.commit()
+            logger.info("✓ Coluna follow_up_at adicionada em leads")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -785,13 +811,74 @@ async def update_lead(lead_id: int, lead_data: LeadSchema):
         if not lead:
             return JSONResponse({"error": "Lead not found"}, status_code=404)
 
+        if lead.status != lead_data.status:
+            db.add(LeadStatusHistory(
+                lead_id=lead.id,
+                from_status=lead.status,
+                to_status=lead_data.status,
+                changed_at=datetime.now()
+            ))
+
         lead.status = lead_data.status
         lead.tags = lead_data.tags
         lead.notes = lead_data.notes
+        lead.follow_up_at = lead_data.follow_up_at
         lead.updated_at = datetime.now()
         db.commit()
+        db.refresh(lead)
 
         return lead
+    finally:
+        db.close()
+
+@app.get("/leads/{lead_id}/history")
+async def get_lead_history(lead_id: int):
+    """Timeline of status changes for a lead"""
+    db = SessionLocal()
+    try:
+        history = db.query(LeadStatusHistory).filter_by(lead_id=lead_id).order_by(LeadStatusHistory.changed_at).all()
+        columns = {c.key: c.label for c in db.query(KanbanColumn).all()}
+        return [
+            {
+                "from_status": columns.get(h.from_status, h.from_status),
+                "to_status": columns.get(h.to_status, h.to_status),
+                "changed_at": h.changed_at,
+            }
+            for h in history
+        ]
+    finally:
+        db.close()
+
+@app.get("/templates")
+async def get_templates():
+    """List saved message templates (canned responses)"""
+    db = SessionLocal()
+    try:
+        return db.query(MessageTemplate).order_by(MessageTemplate.id).all()
+    finally:
+        db.close()
+
+@app.post("/templates")
+async def create_template(req: MessageTemplateSchema):
+    db = SessionLocal()
+    try:
+        template = MessageTemplate(title=req.title.strip(), text=req.text.strip())
+        db.add(template)
+        db.commit()
+        db.refresh(template)
+        return template
+    finally:
+        db.close()
+
+@app.delete("/templates/{template_id}")
+async def delete_template(template_id: int):
+    db = SessionLocal()
+    try:
+        template = db.query(MessageTemplate).filter_by(id=template_id).first()
+        if template:
+            db.delete(template)
+            db.commit()
+        return {"status": "deleted"}
     finally:
         db.close()
 
