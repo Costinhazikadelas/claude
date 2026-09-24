@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useStore } from '../store'
-import { kanbanAPI } from '../services/api'
+import { kanbanAPI, statsAPI } from '../services/api'
 import './StatsBar.css'
 
 const ICON_PATHS = {
@@ -8,6 +8,8 @@ const ICON_PATHS = {
   chat: 'M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z',
   trophy: 'M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0V4zM7 4H4a2 2 0 0 0 0 4h1M17 4h3a2 2 0 0 1 0 4h-1',
   percent: 'M19 5L5 19M6.5 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5zM17.5 20a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5z',
+  message: 'M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z',
+  sparkle: 'M12 3v4M12 17v4M3 12h4M17 12h4M5.6 5.6l2.8 2.8M15.6 15.6l2.8 2.8M18.4 5.6l-2.8 2.8M8.4 15.6l-2.8 2.8',
 }
 
 function Icon({ name }) {
@@ -34,9 +36,14 @@ function StatTile({ icon, tint, label, value, sub }) {
 export default function StatsBar() {
   const { chats, leads } = useStore()
   const [columns, setColumns] = useState([])
+  const [summary, setSummary] = useState({ messages_today: 0, new_leads_7d: 0 })
 
   useEffect(() => {
     kanbanAPI.getColumns().then(res => setColumns(res.data)).catch(() => {})
+    const loadSummary = () => statsAPI.getSummary().then(res => setSummary(res.data)).catch(() => {})
+    loadSummary()
+    const interval = setInterval(loadSummary, 15000)
+    return () => clearInterval(interval)
   }, [])
 
   const byStatus = columns.map((col) => ({
@@ -72,6 +79,18 @@ export default function StatsBar() {
           label="Taxa de conversão"
           value={`${conversionRate}%`}
           sub="ganhos / (ganhos + perdidos)"
+        />
+        <StatTile
+          icon="message"
+          tint="var(--series-1)"
+          label="Mensagens hoje"
+          value={summary.messages_today}
+        />
+        <StatTile
+          icon="sparkle"
+          tint="#4a3aa7"
+          label="Novos leads (7 dias)"
+          value={summary.new_leads_7d}
         />
       </div>
 

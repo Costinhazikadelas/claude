@@ -42,6 +42,10 @@ export const healthAPI = {
   check: () => api.get('/health'),
 }
 
+export const statsAPI = {
+  getSummary: () => api.get('/stats/summary'),
+}
+
 export const connectWebSocket = () => {
   const ws = new WebSocket('ws://localhost:8000/ws')
   return ws
